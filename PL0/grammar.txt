@@ -1,0 +1,83 @@
+program ::= block '.'
+
+block ::= declList statement
+
+declList 
+    ::= <empty>
+    ::= declList decl
+
+decl
+    ::= constDecl
+    ::= varDecl
+    ::= funcDecl
+
+constDecl ::= CONST numberList ';'
+
+numberList
+    ::= IDENT EQ NUMBER
+    ::= numberList COMMA IDENT EQ NUMBER
+
+varDecl ::= VAR identList ';'
+
+identList
+    ::= IDENT
+    ::= identList COMMA IDENT
+
+optParList
+    ::= <empty>
+    ::= parList
+
+parList
+    ::= IDENT
+    ::= parList COMMA IDENT
+
+funcDecl ::= FUNCTION IDENT '('  optParList ')' block ';'
+
+statement
+    ::= <empty>
+    ::= IDENT COLOEQ expression
+    ::= BEGINN statement stateList END
+    ::= IF condition THEN statement
+    ::= WHILE condition DO statement
+    ::= RETURN expression
+    ::= WRITE expression
+    ::= WRITELN
+
+stateList
+    ::= <empty>
+    ::= stateList ';' statement
+
+condition
+    ::= ODD expression
+    ::= expression EQ expression
+    ::= expression NOTEQ expression
+    ::= expression LT expression
+    ::= expression GT expression
+    ::= expression LE expression
+    ::= expression GE expression
+
+expression
+    ::= '-'  term termList
+    ::= term  termList
+
+termList
+    ::= <empty>
+    ::= termList '+' term
+    ::= termList '-' term
+
+term ::= factor factList
+
+factList
+    ::= <empty>
+    ::= factList '*' factor
+    ::= factList '/' factor
+
+factor
+    ::= IDENT
+    ::= NUMBER
+    ::= IDENT '(' expList ')'
+    ::= '(' expression ')'
+
+expList
+    ::= expression
+    ::= expList ',' expression
