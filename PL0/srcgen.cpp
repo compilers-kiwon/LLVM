@@ -8,6 +8,17 @@
 #include <vector>
 
 //===----------------------------------------------------------------------===//
+// Private Defines
+//===----------------------------------------------------------------------===//
+#define IN_RANGE(MIN,n,MAX)   ((MIN)<=(n)&&(n)<=(MAX))
+#define increase_LineNumber() {LineNumber+=((LastChar=='\n')?1:0);}
+
+//===----------------------------------------------------------------------===//
+// Private Variables
+//===----------------------------------------------------------------------===//
+std::map<std::string,int> keyword_tok;
+
+//===----------------------------------------------------------------------===//
 // Lexer
 //===----------------------------------------------------------------------===//
 
@@ -51,48 +62,23 @@ static int LineNumber = 1;
 static int gettok(FILE* in) {
   static int LastChar = ' ';
   
-  LineNumber += ((LastChar=='\n')?1:0);
+  increase_LineNumber();
 
   // Skip any whitespace.
   while (isspace(LastChar))
   {
     LastChar = fgetc(in);
-    LineNumber += ((LastChar=='\n')?1:0);
+    increase_LineNumber();
   }
   
   if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
     IdentifierStr = LastChar;
+
     while (isalnum((LastChar = fgetc(in))))
       IdentifierStr += LastChar;
     
-    if (IdentifierStr == "const")
-      return TOK_CONST;
-    if (IdentifierStr == "var")
-      return TOK_VAR;
-    if (IdentifierStr == "function")
-      return TOK_FUNCTION;
-    if (IdentifierStr == "begin")
-      return TOK_BEGIN;
-    if (IdentifierStr == "end")
-      return TOK_END;
-    if (IdentifierStr == "if")
-      return TOK_IF;
-    if (IdentifierStr == "then")
-      return TOK_THEN;
-    if (IdentifierStr == "while")
-      return TOK_WHILE;
-    if (IdentifierStr == "do")
-      return TOK_DO;
-    if (IdentifierStr == "return")
-      return TOK_RETURN;
-    if (IdentifierStr == "write")
-      return TOK_WRITE;
-    if (IdentifierStr == "writeln")
-      return TOK_WRITELN;
-    if (IdentifierStr == "odd")
-      return TOK_ODD;
-    
-    return TOK_IDENT;
+    return (keyword_tok.find(IdentifierStr)!=keyword_tok.end())?
+            keyword_tok[IdentifierStr]:TOK_IDENT;
   }
 
   if (isdigit(LastChar) || LastChar == '.') { // Number: [0-9.]+
@@ -115,7 +101,7 @@ static int gettok(FILE* in) {
     // Comment until end of line.
     do {
       LastChar = fgetc(in);
-      LineNumber += ((LastChar=='\n')?1:0);
+      increase_LineNumber();
     } while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 
     if (LastChar != EOF)
@@ -170,20 +156,6 @@ static int gettok(FILE* in) {
   int ThisChar = LastChar;
   LastChar = fgetc(in);
   return ThisChar;
-}
-
-//===----------------------------------------------------------------------===//
-// Source Code Generator from Abstract Syntax Tree (aka Parse Tree)
-//===----------------------------------------------------------------------===//
-static void print_indent(int indent)
-{
-  for(int i=0;i<indent;i++)
-  {
-    for(int j=0;j<4;j++)
-    {
-      fputc(' ',stderr);
-    }
-  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -574,9 +546,7 @@ public:
     std::unique_ptr<AST> termList) : op_tok(op_tok),
     term(std::move(term)),termList(std::move(termList)) {}
   void srcgen(int indent){
-    if(op_tok) fputc(op_tok,stderr);
-    if(term) term->srcgen(indent);
-    if(termList) termList->srcgen(indent);
+
   }
 };
 
@@ -607,11 +577,7 @@ public:
   FactListAST(int op_tok,std::unique_ptr<AST> factor,
     std::unique_ptr<AST> factList) : op_tok(op_tok),
     factor(std::move(factor)),factList(std::move(factList)) {}
-  void srcgen(int indent){
-    if(op_tok) fputc(op_tok,stderr);
-    if(factor) factor->srcgen(indent);
-    if(factList) factList->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// FactorAST
@@ -629,26 +595,7 @@ public:
   FactorAST(std::string Name,float Val,std::unique_ptr<AST> expList,
     std::unique_ptr<AST> expression) : Name(Name),Val(Val),
     expList(std::move(expList)),expression(std::move(expression)) {}
-  void srcgen(int indent){
-    if(Name.empty()) {
-      if(expression) {
-        fputc('(',stderr);
-        expression->srcgen(indent);
-        fputc(')',stderr);
-      }
-      else {
-        fprintf(stderr,"%f",Val);
-      }
-    }
-    else {
-      fprintf(stderr,"%s",Name.c_str());
-      if(expList) {
-        fputc('(',stderr);
-        expList->srcgen(indent);
-        fputc(')',stderr);
-      }
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// ExpListAST
@@ -661,17 +608,69 @@ class ExpListAST : public AST {
 public:
   ExpListAST(std::unique_ptr<AST> expList,std::unique_ptr<AST> expression) :
     expList(std::move(expList)),expression(std::move(expression)) {}
-  void srcgen(int indent){
-    if(expression) expression->srcgen(indent);
-    if(expList) {
-      fputc(',',stderr);
-      expList->srcgen(indent);
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 }  
 
+//===----------------------------------------------------------------------===//
+// Source Code Generator from Abstract Syntax Tree (aka Parse Tree)
+//===----------------------------------------------------------------------===//
+static void print_indent(int indent)
+{
+  for(int i=0;i<indent;i++)
+  {
+    for(int j=0;j<4;j++)
+    {
+      fputc(' ',stderr);
+    }
+  }
+}
+
+void ExpListAST::srcgen(int indent)
+{
+  if(expression) expression->srcgen(indent);
+  if(expList) {
+    fputc(',',stderr);
+    expList->srcgen(indent);
+  }
+}
+
+void FactorAST::srcgen(int indent)
+{
+  if(Name.empty()) {
+    if(expression) {
+      fputc('(',stderr);
+      expression->srcgen(indent);
+      fputc(')',stderr);
+    }
+    else {
+      fprintf(stderr,"%f",Val);
+    }
+  }
+  else {
+    fprintf(stderr,"%s",Name.c_str());
+    if(expList) {
+      fputc('(',stderr);
+      expList->srcgen(indent);
+      fputc(')',stderr);
+    }
+  }
+}
+
+void FactListAST::srcgen(int indent)
+{
+  if(op_tok) fputc(op_tok,stderr);
+  if(factor) factor->srcgen(indent);
+  if(factList) factList->srcgen(indent);
+}
+
+void TermListAST::srcgen(int indent)
+{
+  if(op_tok) fputc(op_tok,stderr);
+  if(term) term->srcgen(indent);
+  if(termList) termList->srcgen(indent);
+}
 //===----------------------------------------------------------------------===//
 // Parser
 //===----------------------------------------------------------------------===//
@@ -1170,8 +1169,7 @@ static std::unique_ptr<AST> ParseCondition(void)
 
   int op_tok = CurTok;
 
-  if( op_tok!=TOK_EQ && op_tok!=TOK_NOTEQ && op_tok!=TOK_LT
-        && op_tok!=TOK_GT && op_tok!=TOK_LE && op_tok!=TOK_GT )
+  if( !IN_RANGE(TOK_GE,op_tok,TOK_EQ) )
   {
     return LogError("Expected conditional operator");
   }
@@ -1319,8 +1317,26 @@ static std::unique_ptr<AST> ParseProgram(void)
   return  std::make_unique<ProgramAST>(std::move(B));
 }
 
+void init_keywords(void)
+{
+  keyword_tok["const"] = TOK_CONST;
+  keyword_tok["var"] = TOK_VAR;
+  keyword_tok["function"] = TOK_FUNCTION;
+  keyword_tok["begin"] = TOK_BEGIN;
+  keyword_tok["end"] = TOK_END;
+  keyword_tok["if"] = TOK_IF;
+  keyword_tok["then"] = TOK_THEN;
+  keyword_tok["while"] = TOK_WHILE;
+  keyword_tok["do"] = TOK_DO;
+  keyword_tok["return"] = TOK_RETURN;
+  keyword_tok["write"] = TOK_WRITE;
+  keyword_tok["writeln"] = TOK_WRITELN;
+  keyword_tok["odd"] = TOK_ODD;
+}
+
 int  main(int argc,char** argv)
 {
+    init_keywords();
     fp = fopen(argv[1],"r");
 
     if( !fp )
