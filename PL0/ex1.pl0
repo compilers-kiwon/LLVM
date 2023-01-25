@@ -6,7 +6,7 @@ begin
     begin
         if odd b then c:=c+a;
         a:=2*a; b:=b/2;
-    end
+    end;
     return c;
 end; 
 
@@ -15,5 +15,5 @@ var x,y;
 
 begin
   x:=m; y:=n; 
-  write x; write y; writeln; write multiply(x,y); writeln
+  write x; write y; writeln; write multiply(x,y); writeln;
 end.
