@@ -16,7 +16,8 @@
 //===----------------------------------------------------------------------===//
 // Private Variables
 //===----------------------------------------------------------------------===//
-std::map<std::string,int> keyword_tok;
+static std::map<std::string,int> keyword_tok;
+static std::map<int,std::string> cond_operator;
 
 //===----------------------------------------------------------------------===//
 // Lexer
@@ -178,10 +179,7 @@ class ProgramAST : public AST {
 
 public:
   ProgramAST(std::unique_ptr<AST> block) : block(std::move(block)) {}
-  void srcgen(int indent) {
-    if(block) block->srcgen(indent);
-    fprintf(stderr,".\n");
-  }
+  void srcgen(int indent) override;
 };
 
 /// BlockAST
@@ -192,10 +190,7 @@ class BlockAST : public AST {
 public:
   BlockAST(std::unique_ptr<AST> declList,std::unique_ptr<AST> statement)
     : declList(std::move(declList)), statement(std::move(statement)) {}
-  void srcgen(int indent) {
-    if(declList) declList->srcgen(indent);
-    if(statement) statement->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// DeclListAST
@@ -208,10 +203,7 @@ class DeclListAST : public AST {
 public:
   DeclListAST(std::unique_ptr<AST> declList,std::unique_ptr<AST> decl)
     : declList(std::move(declList)), decl(std::move(decl)) {}
-  void srcgen(int indent) {
-    if(decl) decl->srcgen(indent);
-    if(declList) declList->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// DeclAST
@@ -225,9 +217,7 @@ class DeclAST : public AST {
 public:
   DeclAST(std::unique_ptr<AST> decl)
     : decl(std::move(decl)) {}
-  void srcgen(int indent) {
-    if(decl) decl->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// ConstDeclAST
@@ -238,12 +228,7 @@ class ConstDeclAST : public AST {
 public:
   ConstDeclAST(std::unique_ptr<AST> numberList)
     : numberList(std::move(numberList)) {}
-  void srcgen(int indent) {
-    print_indent(indent);
-    fprintf(stderr,"const ");
-    if(numberList) numberList->srcgen(indent);
-    fprintf(stderr,";\n");
-  }
+  void srcgen(int indent) override;
 };
 
 /// NumberListAST
@@ -258,13 +243,7 @@ class NumberListAST : public AST {
 public:
   NumberListAST(std::string Name,float Val,std::unique_ptr<AST> numberList)
     : Name(Name),Val(Val),numberList(std::move(numberList)) {}
-  void srcgen(int indent) {
-    fprintf(stderr,"%s=%f",Name.c_str(),Val);
-    if(numberList) {
-      fputc(',',stderr);
-      numberList->srcgen(indent);
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// VarDeclAST
@@ -275,12 +254,7 @@ class VarDeclAST : public AST {
 public:
   VarDeclAST(std::unique_ptr<AST> identList)
     : identList(std::move(identList)) {}
-  void srcgen(int indent) {
-    print_indent(indent);
-    fprintf(stderr,"var ");
-    if(identList) identList->srcgen(indent);
-    fprintf(stderr,";\n");
-  }
+  void srcgen(int indent) override;
 };
 
 /// IdentListAST
@@ -294,13 +268,7 @@ class IdentListAST : public AST {
 public:
   IdentListAST(std::string Name,std::unique_ptr<AST> identList)
     : Name(Name),identList(std::move(identList)) {}
-  void srcgen(int indent) {
-    fprintf(stderr,"%s",Name.c_str());
-    if(identList) {
-      fputc(',',stderr);
-      identList->srcgen(indent);
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// OptParListAST
@@ -313,9 +281,7 @@ class OptParListAST : public AST {
 public:
   OptParListAST(std::unique_ptr<AST> parList)
     : parList(std::move(parList)) {}
-  void srcgen(int indent) {
-    if(parList) parList->srcgen(indent);
-  }  
+  void srcgen(int indent) override;
 };
 
 /// ParListAST
@@ -329,13 +295,7 @@ class ParListAST : public AST {
 public:
   ParListAST(std::string Name, std::unique_ptr<AST> parList)
     : Name(Name),parList(std::move(parList)) {}
-  void srcgen(int indent) {
-    fprintf(stderr,"%s",Name.c_str());
-    if(parList) {
-      fputc(',',stderr);
-      parList->srcgen(indent);
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// FuncDeclAST
@@ -348,13 +308,7 @@ public:
   FuncDeclAST(std::string Name,std::unique_ptr<AST> optParList,
     std::unique_ptr<AST> block) : Name(Name),
     optParList(std::move(optParList)), block(std::move(block)) {}
-  void srcgen(int indent) {
-    fprintf(stderr,"function %s (",Name.c_str());
-    if(optParList) optParList->srcgen(indent);
-    fprintf(stderr,")\n");
-    if(block) block->srcgen(indent+1);
-    fprintf(stderr,";\n");
-  }
+  void srcgen(int indent) override;
 };
 
 /// StatementAST
@@ -381,53 +335,7 @@ public:
     std::unique_ptr<AST> stateList) : head_tok(head_tok),Name(Name),
     expression(std::move(expression)),condition(std::move(condition)),
     statement(std::move(statement)),stateList(std::move(stateList)) {}
-  void srcgen(int indent){
-    if(head_tok) print_indent(indent);
-
-    switch(head_tok)
-    {
-      case TOK_IDENT:
-        fprintf(stderr,"%s := ",Name.c_str());
-        if(expression) expression->srcgen(indent);
-        break;
-      case TOK_BEGIN:
-        fprintf(stderr,"begin\n");
-        if(statement) statement->srcgen(indent+1);
-        if(stateList) {
-          fprintf(stderr,";\n");
-          stateList->srcgen(indent+1);
-        }
-        print_indent(indent);
-        fprintf(stderr,"end");
-        break;
-      case TOK_IF:
-        fprintf(stderr,"if ");
-        if(condition) condition->srcgen(indent);
-        fprintf(stderr," then\n");
-        if(statement) statement->srcgen(indent+1);
-        break;
-      case TOK_WHILE:
-        fprintf(stderr,"while ");
-        if(condition) condition->srcgen(indent);
-        fprintf(stderr," do\n");
-        if(statement) statement->srcgen(indent);
-        break;
-      case TOK_RETURN:
-        fprintf(stderr,"return ");
-        if(expression) expression->srcgen(indent);
-        break;
-      case TOK_WRITE:
-        fprintf(stderr,"write ");
-        if(expression) expression->srcgen(indent);
-        break;
-      case TOK_WRITELN:
-        fprintf(stderr,"writeln");
-        break;
-      default:
-        // do nothing
-        break;
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// StateListAST
@@ -441,15 +349,7 @@ public:
   StateListAST(std::unique_ptr<AST> stateList,
     std::unique_ptr<AST> statement) : stateList(std::move(stateList)),
     statement(std::move(statement)) {}
-  void srcgen(int indent){
-    if(statement) {
-      statement->srcgen(indent);
-      fprintf(stderr,";\n");
-    }
-    if(stateList) {
-      stateList->srcgen(indent);
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// ConditionAST
@@ -469,48 +369,7 @@ public:
   ConditionAST(int op_tok,std::unique_ptr<AST> LHS,
     std::unique_ptr<AST> RHS) : op_tok(op_tok),
     LHS(std::move(LHS)),RHS(std::move(RHS)) {}
-  void srcgen(int indent){
-    switch(op_tok)
-    {
-      case TOK_ODD:
-        fprintf(stderr,"odd ");
-        if(LHS) LHS->srcgen(indent);
-        break;
-      case TOK_EQ:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,"==");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      case TOK_NOTEQ:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,"!=");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      case TOK_LT:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,"<");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      case TOK_GT:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,">");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      case TOK_LE:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,"<=");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      case TOK_GE:
-        if(LHS) LHS->srcgen(indent);
-        fprintf(stderr,">=");
-        if(RHS) RHS->srcgen(indent);
-        break;
-      default:
-        // do nothing
-        break;
-    }
-  }
+  void srcgen(int indent) override;
 };
 
 /// ExpressionAST
@@ -525,11 +384,7 @@ public:
   ExpressionAST(int head_tok,std::unique_ptr<AST> term,
     std::unique_ptr<AST> termList) : head_tok(head_tok),
     term(std::move(term)),termList(std::move(termList)) {}
-  void srcgen(int indent){
-    if(head_tok) fputc(head_tok,stderr);
-    if(term) term->srcgen(indent);
-    if(termList) termList->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// TermListAST
@@ -545,9 +400,7 @@ public:
   TermListAST(int op_tok,std::unique_ptr<AST> term,
     std::unique_ptr<AST> termList) : op_tok(op_tok),
     term(std::move(term)),termList(std::move(termList)) {}
-  void srcgen(int indent){
-
-  }
+  void srcgen(int indent) override;
 };
 
 /// TermAST
@@ -558,10 +411,7 @@ class TermAST : public AST {
 public:
   TermAST(std::unique_ptr<AST> factor,std::unique_ptr<AST> factList)
     : factor(std::move(factor)),factList(std::move(factList)) {}
-  void srcgen(int indent){
-    if(factor) factor->srcgen(indent);
-    if(factList) factList->srcgen(indent);
-  }
+  void srcgen(int indent) override;
 };
 
 /// FactListAST
@@ -627,6 +477,38 @@ static void print_indent(int indent)
   }
 }
 
+void ProgramAST::srcgen(int indent)
+{
+  if(block) block->srcgen(indent);
+  fprintf(stderr,".\n");
+}
+
+void BlockAST::srcgen(int indent)
+{
+  if(declList) declList->srcgen(indent);
+  if(statement) statement->srcgen(indent);
+}
+
+void DeclAST::srcgen(int indent)
+{
+  if(decl) decl->srcgen(indent);
+}
+
+void DeclListAST::srcgen(int indent)
+{
+  if(decl) decl->srcgen(indent);
+  if(declList) declList->srcgen(indent);
+}
+
+void ConstDeclAST::srcgen(int indent)
+{
+  print_indent(indent);
+  fprintf(stderr,"const ");
+
+  if(numberList) numberList->srcgen(indent);
+  fprintf(stderr,";\n");
+}
+
 void ExpListAST::srcgen(int indent)
 {
   if(expression) expression->srcgen(indent);
@@ -670,6 +552,149 @@ void TermListAST::srcgen(int indent)
   if(op_tok) fputc(op_tok,stderr);
   if(term) term->srcgen(indent);
   if(termList) termList->srcgen(indent);
+}
+
+void TermAST::srcgen(int indent)
+{
+  if(factor) factor->srcgen(indent);
+  if(factList) factList->srcgen(indent);
+}
+
+void ExpressionAST::srcgen(int indent)
+{
+  if(head_tok) fputc(head_tok,stderr);
+  if(term) term->srcgen(indent);
+  if(termList) termList->srcgen(indent);
+}
+
+void ConditionAST::srcgen(int indent)
+{
+  if( op_tok == TOK_ODD )
+  {
+    fprintf(stderr,"odd ");
+    if(LHS) LHS->srcgen(indent);
+  }
+  else
+  {
+    if(LHS) LHS->srcgen(indent);
+    fprintf(stderr," %s ",cond_operator[op_tok].c_str());
+    if(RHS) RHS->srcgen(indent);
+  }
+}
+
+void StateListAST::srcgen(int indent)
+{
+  if(statement) {
+    statement->srcgen(indent);
+    fprintf(stderr,";\n");
+  }
+  if(stateList) {
+    stateList->srcgen(indent);
+  }
+}
+
+void StatementAST::srcgen(int indent)
+{
+  if(head_tok) print_indent(indent);
+
+  switch(head_tok)
+  {
+    case TOK_IDENT:
+      fprintf(stderr,"%s := ",Name.c_str());
+      if(expression) expression->srcgen(indent);
+      break;
+    case TOK_BEGIN:
+      fprintf(stderr,"begin\n");
+      if(statement) statement->srcgen(indent+1);
+      if(stateList) {
+        fprintf(stderr,";\n");
+        stateList->srcgen(indent+1);
+      }
+      print_indent(indent);
+      fprintf(stderr,"end");
+      break;
+    case TOK_IF:
+      fprintf(stderr,"if ");
+      if(condition) condition->srcgen(indent);
+      fprintf(stderr," then\n");
+      if(statement) statement->srcgen(indent+1);
+      break;
+    case TOK_WHILE:
+      fprintf(stderr,"while ");
+      if(condition) condition->srcgen(indent);
+      fprintf(stderr," do\n");
+      if(statement) statement->srcgen(indent);
+      break;
+    case TOK_RETURN:
+      fprintf(stderr,"return ");
+      if(expression) expression->srcgen(indent);
+      break;
+    case TOK_WRITE:
+      fprintf(stderr,"write ");
+      if(expression) expression->srcgen(indent);
+      break;
+    case TOK_WRITELN:
+      fprintf(stderr,"writeln");
+      break;
+    default:
+      // do nothing
+      break;
+  }
+}
+
+void FuncDeclAST::srcgen(int indent)
+{
+  fprintf(stderr,"function %s (",Name.c_str());
+
+  if(optParList) optParList->srcgen(indent);
+  fprintf(stderr,")\n");
+
+  if(block) block->srcgen(indent+1);
+  fprintf(stderr,";\n");
+}
+
+void ParListAST::srcgen(int indent)
+{
+  fprintf(stderr,"%s",Name.c_str());
+
+  if(parList) {
+    fputc(',',stderr);
+    parList->srcgen(indent);
+  }
+}
+
+void OptParListAST::srcgen(int indent)
+{
+  if(parList) parList->srcgen(indent);
+}
+
+void IdentListAST::srcgen(int indent)
+{
+  fprintf(stderr,"%s",Name.c_str());
+
+  if(identList) {
+    fputc(',',stderr);
+    identList->srcgen(indent);
+  }
+}
+
+void VarDeclAST::srcgen(int indent)
+{
+  print_indent(indent);
+  fprintf(stderr,"var ");
+
+  if(identList) identList->srcgen(indent);
+  fprintf(stderr,";\n");
+}
+
+void NumberListAST::srcgen(int indent)
+{
+  fprintf(stderr,"%s=%f",Name.c_str(),Val);
+
+  if(numberList) {
+    fputc(',',stderr);
+    numberList->srcgen(indent);
+  }
 }
 //===----------------------------------------------------------------------===//
 // Parser
@@ -1317,7 +1342,7 @@ static std::unique_ptr<AST> ParseProgram(void)
   return  std::make_unique<ProgramAST>(std::move(B));
 }
 
-void init_keywords(void)
+void init_map(void)
 {
   keyword_tok["const"] = TOK_CONST;
   keyword_tok["var"] = TOK_VAR;
@@ -1332,11 +1357,18 @@ void init_keywords(void)
   keyword_tok["write"] = TOK_WRITE;
   keyword_tok["writeln"] = TOK_WRITELN;
   keyword_tok["odd"] = TOK_ODD;
+
+  cond_operator[TOK_EQ] = "==";
+  cond_operator[TOK_NOTEQ] = "!=";
+  cond_operator[TOK_LT] = "<";
+  cond_operator[TOK_GT] = ">";
+  cond_operator[TOK_LE] = "<=";
+  cond_operator[TOK_GE] = ">=";
 }
 
 int  main(int argc,char** argv)
 {
-    init_keywords();
+    init_map();
     fp = fopen(argv[1],"r");
 
     if( !fp )
