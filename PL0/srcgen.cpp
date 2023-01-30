@@ -11,7 +11,6 @@
 // Private Defines
 //===----------------------------------------------------------------------===//
 #define IN_RANGE(MIN,n,MAX)   ((MIN)<=(n)&&(n)<=(MAX))
-#define increase_LineNumber() {LineNumber+=((LastChar=='\n')?1:0);}
 
 //===----------------------------------------------------------------------===//
 // Private Variables
@@ -59,23 +58,31 @@ static std::string IdentifierStr; // Filled in if tok_identifier
 static double NumVal;             // Filled in if tok_number
 static int LineNumber = 1;
 
+static int read_char(FILE* in) {
+  int ret = fgetc(in);
+
+  if( ret == '\n' )
+  {
+    LineNumber++;
+  }
+
+  return  ret;
+}
+
 /// gettok - Return the next token from standard input.
 static int gettok(FILE* in) {
   static int LastChar = ' ';
   
-  increase_LineNumber();
-
   // Skip any whitespace.
   while (isspace(LastChar))
   {
-    LastChar = fgetc(in);
-    increase_LineNumber();
+    LastChar = read_char(in);
   }
   
   if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
     IdentifierStr = LastChar;
 
-    while (isalnum((LastChar = fgetc(in))))
+    while (isalnum((LastChar = read_char(in))))
       IdentifierStr += LastChar;
     
     return (keyword_tok.find(IdentifierStr)!=keyword_tok.end())?
@@ -86,7 +93,7 @@ static int gettok(FILE* in) {
     std::string NumStr;
     do {
       NumStr += LastChar;
-      LastChar = fgetc(in);
+      LastChar = read_char(in);
     } while (isdigit(LastChar) || LastChar == '.');
 
     if( NumStr == "." )
@@ -101,8 +108,7 @@ static int gettok(FILE* in) {
   if (LastChar == '#') {
     // Comment until end of line.
     do {
-      LastChar = fgetc(in);
-      increase_LineNumber();
+      LastChar = read_char(in);
     } while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 
     if (LastChar != EOF)
@@ -110,40 +116,40 @@ static int gettok(FILE* in) {
   }
   
   if (LastChar == ':') {
-    if((LastChar=fgetc(in)) == '='){
-        LastChar = fgetc(in);
+    if((LastChar=read_char(in)) == '='){
+        LastChar = read_char(in);
         return  TOK_COLOEQ;
     }
     return ':';
   }
 
   if (LastChar == '=') {
-    if((LastChar=fgetc(in)) == '='){
-        LastChar = fgetc(in);
+    if((LastChar=read_char(in)) == '='){
+        LastChar = read_char(in);
         return  TOK_EQ;
     }
     return '=';
   }
 
   if (LastChar == '!') {
-    if((LastChar=fgetc(in)) == '='){
-        LastChar = fgetc(in);
+    if((LastChar=read_char(in)) == '='){
+        LastChar = read_char(in);
         return  TOK_EQ;
     }
     return '!';
   }
 
   if (LastChar == '<') {
-    if((LastChar=fgetc(in)) == '='){
-        LastChar = fgetc(in);
+    if((LastChar=read_char(in)) == '='){
+        LastChar = read_char(in);
         return  TOK_LE;
     }
     return TOK_LT;
   }
 
   if (LastChar == '>') {
-    if((LastChar=fgetc(in)) == '='){
-        LastChar = fgetc(in);
+    if((LastChar=read_char(in)) == '='){
+        LastChar = read_char(in);
         return  TOK_GE;
     }
     return TOK_GT;
@@ -155,7 +161,7 @@ static int gettok(FILE* in) {
 
   // Otherwise, just return the character as its ascii value.
   int ThisChar = LastChar;
-  LastChar = fgetc(in);
+  LastChar = read_char(in);
   return ThisChar;
 }
 
