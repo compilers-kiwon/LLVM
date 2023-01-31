@@ -1,3 +1,15 @@
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -176,6 +188,8 @@ class AST {
 public:
   virtual ~AST() = default;
   virtual void srcgen(int indent) = 0;
+  virtual Value* codegen(void) = 0;
+  virtual Value* codegen(stc::vector<Value*>& v) = 0;
 };
 
 /// ProgramAST
@@ -186,6 +200,7 @@ class ProgramAST : public AST {
 public:
   ProgramAST(std::unique_ptr<AST> block) : block(std::move(block)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// BlockAST
@@ -197,6 +212,7 @@ public:
   BlockAST(std::unique_ptr<AST> declList,std::unique_ptr<AST> statement)
     : declList(std::move(declList)), statement(std::move(statement)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// DeclListAST
@@ -210,6 +226,7 @@ public:
   DeclListAST(std::unique_ptr<AST> declList,std::unique_ptr<AST> decl)
     : declList(std::move(declList)), decl(std::move(decl)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// DeclAST
@@ -224,6 +241,7 @@ public:
   DeclAST(std::unique_ptr<AST> decl)
     : decl(std::move(decl)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// ConstDeclAST
@@ -235,6 +253,7 @@ public:
   ConstDeclAST(std::unique_ptr<AST> numberList)
     : numberList(std::move(numberList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// NumberListAST
@@ -250,6 +269,7 @@ public:
   NumberListAST(std::string Name,float Val,std::unique_ptr<AST> numberList)
     : Name(Name),Val(Val),numberList(std::move(numberList)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// VarDeclAST
@@ -261,6 +281,7 @@ public:
   VarDeclAST(std::unique_ptr<AST> identList)
     : identList(std::move(identList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// IdentListAST
@@ -275,6 +296,7 @@ public:
   IdentListAST(std::string Name,std::unique_ptr<AST> identList)
     : Name(Name),identList(std::move(identList)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// OptParListAST
@@ -288,6 +310,7 @@ public:
   OptParListAST(std::unique_ptr<AST> parList)
     : parList(std::move(parList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// ParListAST
@@ -302,6 +325,7 @@ public:
   ParListAST(std::string Name, std::unique_ptr<AST> parList)
     : Name(Name),parList(std::move(parList)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// FuncDeclAST
@@ -315,6 +339,7 @@ public:
     std::unique_ptr<AST> block) : Name(Name),
     optParList(std::move(optParList)), block(std::move(block)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// StatementAST
@@ -342,6 +367,7 @@ public:
     expression(std::move(expression)),condition(std::move(condition)),
     statement(std::move(statement)),stateList(std::move(stateList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// StateListAST
@@ -356,6 +382,7 @@ public:
     std::unique_ptr<AST> statement) : stateList(std::move(stateList)),
     statement(std::move(statement)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// ConditionAST
@@ -376,6 +403,7 @@ public:
     std::unique_ptr<AST> RHS) : op_tok(op_tok),
     LHS(std::move(LHS)),RHS(std::move(RHS)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// ExpressionAST
@@ -391,6 +419,7 @@ public:
     std::unique_ptr<AST> termList) : head_tok(head_tok),
     term(std::move(term)),termList(std::move(termList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// TermListAST
@@ -407,6 +436,7 @@ public:
     std::unique_ptr<AST> termList) : op_tok(op_tok),
     term(std::move(term)),termList(std::move(termList)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// TermAST
@@ -418,6 +448,7 @@ public:
   TermAST(std::unique_ptr<AST> factor,std::unique_ptr<AST> factList)
     : factor(std::move(factor)),factList(std::move(factList)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// FactListAST
@@ -434,6 +465,7 @@ public:
     std::unique_ptr<AST> factList) : op_tok(op_tok),
     factor(std::move(factor)),factList(std::move(factList)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 /// FactorAST
@@ -452,6 +484,7 @@ public:
     std::unique_ptr<AST> expression) : Name(Name),Val(Val),
     expList(std::move(expList)),expression(std::move(expression)) {}
   void srcgen(int indent) override;
+  Value* codegen(void) override;
 };
 
 /// ExpListAST
@@ -465,6 +498,7 @@ public:
   ExpListAST(std::unique_ptr<AST> expList,std::unique_ptr<AST> expression) :
     expList(std::move(expList)),expression(std::move(expression)) {}
   void srcgen(int indent) override;
+  Value* codegen(stc::vector<Value*>& v) override;
 };
 
 }  
@@ -715,7 +749,9 @@ static int getNextToken(FILE* in){ return CurTok = gettok(in); }
 
 /// LogError* - These are little helper functions for error handling.
 std::unique_ptr<AST> LogError(const char *Str) {
-  fprintf(stderr, "%d, Error: %s\n", LineNumber, Str);
+  static bool found = false;
+
+  if(!found) fprintf(stderr, "%d, Error: %s\n", LineNumber, Str),found=true;
   return nullptr;
 }
 std::unique_ptr<AST> LogErrorP(const char *Str) {
@@ -737,7 +773,7 @@ static std::unique_ptr<AST> ParseParList(void)
 
   if( CurTok != TOK_IDENT )
   {
-    return nullptr;
+    return LogError("Expected Identifier");
   }
 
   name = IdentifierStr;
@@ -785,6 +821,7 @@ static std::unique_ptr<AST> ParseNumberList(void)
 
   if( CurTok != TOK_IDENT )
   {
+    LogError("Expected Identifier");
     return nullptr;
   }
 
@@ -793,14 +830,14 @@ static std::unique_ptr<AST> ParseNumberList(void)
   
   if( CurTok != '=' )
   {
-    return nullptr;
+    return LogError("Expected '='");
   }
 
   getNextToken(fp);
 
   if( CurTok != TOK_NUMBER )
   {
-    return nullptr;
+    return LogError("Expected Number");;
   }
 
   val = NumVal;
@@ -832,7 +869,7 @@ static std::unique_ptr<AST> ParseIdentList(void)
 
   if( CurTok != TOK_IDENT )
   {
-    return nullptr;
+    return LogError("Expected Identifier");
   }
 
   name = IdentifierStr;
@@ -874,7 +911,7 @@ static std::unique_ptr<AST> ParseConstDecl(void)
 
   if( CurTok != ';' )
   {
-    return nullptr;
+    return LogError("Expected ';'");
   }
 
   getNextToken(fp);
@@ -901,7 +938,7 @@ static std::unique_ptr<AST> ParseVarDecl(void)
 
   if( CurTok != ';' )
   {
-    return nullptr;
+    return LogError("Expected ';'");
   }
 
   getNextToken(fp);
@@ -923,7 +960,7 @@ static std::unique_ptr<AST> ParseFuncDecl(void)
   
   if( CurTok != TOK_IDENT )
   {
-    return LogError("Expected ID");
+    return LogError("Expected Identifier");
   }
 
   name = IdentifierStr;
@@ -931,7 +968,7 @@ static std::unique_ptr<AST> ParseFuncDecl(void)
 
   if( CurTok != '(' )
   {
-    return LogError("Expected (");;
+    return LogError("Expected '('");;
   }
 
   getNextToken(fp);
@@ -940,7 +977,7 @@ static std::unique_ptr<AST> ParseFuncDecl(void)
 
   if( CurTok != ')' )
   {
-    return LogError("Expected )");
+    return LogError("Expected ')'");
   }
 
   getNextToken(fp);
@@ -953,7 +990,7 @@ static std::unique_ptr<AST> ParseFuncDecl(void)
 
   if( CurTok != ';' )
   {
-    return LogError("Expected ;");
+    return LogError("Expected ';'");
   }
 
   getNextToken(fp);
@@ -1069,7 +1106,12 @@ static std::unique_ptr<AST> ParseFactor(void)
 
     if( !EL || CurTok!=')' )
     {
-      return nullptr;
+      if( !EL )
+      {
+        return nullptr;
+      }
+
+      return LogError("Expected ')'");
     }
 
     getNextToken(fp);
@@ -1089,7 +1131,12 @@ static std::unique_ptr<AST> ParseFactor(void)
 
     if( !E || CurTok!=')' )
     {
-      return nullptr;
+      if( !E )
+      {
+        return nullptr;
+      }
+
+      return LogError("Expected ')'");
     }
 
     getNextToken(fp);
@@ -1223,7 +1270,7 @@ static std::unique_ptr<AST> ParseStateList(void)
 {
   if( CurTok != ';' )
   {
-    return nullptr;
+    return LogError("Expected ';'");
   }
 
   getNextToken(fp);
@@ -1251,7 +1298,7 @@ static std::unique_ptr<AST> ParseStatement(void)
       {
         name = IdentifierStr;
         getNextToken(fp);
-        if(CurTok!=TOK_COLOEQ) return nullptr;
+        if(CurTok!=TOK_COLOEQ) return LogError("Expected ':='");;
         getNextToken(fp);
         auto E = ParseExpression();
         if(!E) return nullptr;
@@ -1263,7 +1310,7 @@ static std::unique_ptr<AST> ParseStatement(void)
         getNextToken(fp);
         auto S = ParseStatement();
         auto SL = ParseStateList();
-        if(CurTok!=TOK_END) return nullptr;
+        if(CurTok!=TOK_END) return LogError("Expected 'end'");
         getNextToken(fp);
         return std::make_unique<StatementAST>(TOK_BEGIN,"",nullptr,nullptr,std::move(S),std::move(SL));
       }
@@ -1273,7 +1320,7 @@ static std::unique_ptr<AST> ParseStatement(void)
         getNextToken(fp);
         auto C = ParseCondition();
         if(!C) return nullptr;
-        if(CurTok!=TOK_THEN) return nullptr;
+        if(CurTok!=TOK_THEN) return LogError("Expected 'then'");
         getNextToken(fp);
         auto S = ParseStatement();
         return std::make_unique<StatementAST>(TOK_IF,"",nullptr,std::move(C),std::move(S),nullptr);
@@ -1283,8 +1330,8 @@ static std::unique_ptr<AST> ParseStatement(void)
       {
         getNextToken(fp);
         auto C = ParseCondition();
-        if(!C) return nullptr;
-        if(CurTok!=TOK_DO) return nullptr;
+        if(!C) return LogError("Expected a condition");
+        if(CurTok!=TOK_DO) return LogError("Expected 'do'");
         getNextToken(fp);
         auto S = ParseStatement();
         return std::make_unique<StatementAST>(TOK_WHILE,"",nullptr,std::move(C),std::move(S),nullptr);
@@ -1294,7 +1341,7 @@ static std::unique_ptr<AST> ParseStatement(void)
       {
         getNextToken(fp);
         auto E = ParseExpression();
-        if(!E) return nullptr;
+        if(!E) return LogError("Expected an expression");
         return std::make_unique<StatementAST>(TOK_RETURN,"",std::move(E),nullptr,nullptr,nullptr);
       }
       break;
@@ -1335,7 +1382,7 @@ static std::unique_ptr<AST> ParseProgram(void)
 
   if( !B )
   {
-    return  LogError("Cannot find block!!");
+    return  nullptr;
   }
   
   if( CurTok != '.' )
@@ -1346,6 +1393,18 @@ static std::unique_ptr<AST> ParseProgram(void)
   getNextToken(fp);
 
   return  std::make_unique<ProgramAST>(std::move(B));
+}
+
+//===----------------------------------------------------------------------===//
+// LLVM IR Generator
+//===----------------------------------------------------------------------===//
+static LLVMContext TheContext;
+static IRBuilder<> Builder(TheContext);
+static std::unique_ptr<Module> TheModule;
+static std::map<std::string, Value *> NamedValues;
+
+Value* NumberListAST::codegen(void){
+
 }
 
 void init_map(void)
