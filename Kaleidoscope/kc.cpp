@@ -211,10 +211,35 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
     return  std::make_unique<CallExprAST>(IdName,std::move(Args));
 }
 
+///  ifexpr ::= 'if' expression 'then' expression 'else' expression
+static std::unique_ptr<ExprAST> ParseIfExpr()
+{
+    getNextToken();
+
+    auto Cond = ParseExpression();
+    if(!Cond) return nullptr;
+
+    if(CurTok!=TOK_THEN) return LogError("expected then");
+    getNextToken();
+
+    auto Then = ParseExpression();
+    if(!Then) return nullptr;
+
+    if(CurTok!=TOK_ELSE) return LogError("expected else");
+    getNextToken();
+
+    auto Else = ParseExpression();
+    if(!Else) return nullptr;
+
+    return  std::make_unique<IfExprAST>(std::move(Cond),
+                                std::move(Then),std::move(Else));
+}
+
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
 ///   ::= parenexpr
+///   ::= ifexpr
 static std::unique_ptr<ExprAST> ParsePrimary()
 {
     switch(CurTok)
@@ -225,6 +250,8 @@ static std::unique_ptr<ExprAST> ParsePrimary()
             return  ParseNumberExpr();
         case    '(':
             return  ParseParenExpr();
+        case    TOK_IF:
+            return  ParseIfExpr();
         default:
             break;
     }
@@ -386,6 +413,12 @@ Value*  VariableExprAST::codegen()
 
     if(!V) return LogErrorV("Unknown variable name");
     return  V;
+}
+
+Value*  IfExprAST::codegen()
+{
+    // will be implemented
+    return  nullptr;
 }
 
 Value*  BinaryExprAST::codegen()
@@ -630,6 +663,9 @@ int main(int argc,char** argv)
 
     keyword["def"] = TOK_DEF;
     keyword["extern"] = TOK_EXTERN;
+    keyword["if"] = TOK_IF;
+    keyword["then"] = TOK_THEN;
+    keyword["else"] = TOK_ELSE;
 
     BinOpPrecedence['<'] = 10;
     BinOpPrecedence['+'] = 20;
