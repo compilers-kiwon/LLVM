@@ -235,6 +235,53 @@ static std::unique_ptr<ExprAST> ParseIfExpr()
                                 std::move(Then),std::move(Else));
 }
 
+/// forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expression
+static std::unique_ptr<ExprAST> ParseForExpr()
+{
+    getNextToken();
+
+    if( CurTok != TOK_IDENTIFIER )
+    {
+        return LogError("expected identifier after for");
+    }
+
+    std::string IdName = Identifier;
+    getNextToken();
+
+    if( CurTok != '=' )
+    {
+        return LogError("expected '=' after for");
+    }
+    getNextToken();
+
+    auto Start = ParseExpression();
+    if(!Start) return nullptr;
+
+    if(CurTok!=',') return LogError("expected ',' after for start value");
+    getNextToken();
+
+    auto End = ParseExpression();
+    if(!End) return nullptr;
+
+    std::unique_ptr<ExprAST> Step;
+
+    if( CurTok == ',' )
+    {
+        getNextToken();
+        Step = ParseExpression();
+        if(!Step) return nullptr;
+    }
+
+    if(CurTok!=TOK_IN) return LogError("expected 'in' after for");
+    getNextToken();
+
+    auto Body = ParseExpression();
+    if(!Body) return nullptr;
+
+    return std::make_unique<ForExprAST>(IdName,std::move(Start),
+                        std::move(End),std::move(Step),std::move(Body));
+}
+
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
@@ -252,6 +299,8 @@ static std::unique_ptr<ExprAST> ParsePrimary()
             return  ParseParenExpr();
         case    TOK_IF:
             return  ParseIfExpr();
+        case    TOK_FOR:
+            return  ParseForExpr();
         default:
             break;
     }
@@ -416,6 +465,12 @@ Value*  VariableExprAST::codegen()
 }
 
 Value*  IfExprAST::codegen()
+{
+    // will be implemented
+    return  nullptr;
+}
+
+Value*  ForExprAST::codegen()
 {
     // will be implemented
     return  nullptr;
@@ -666,6 +721,8 @@ int main(int argc,char** argv)
     keyword["if"] = TOK_IF;
     keyword["then"] = TOK_THEN;
     keyword["else"] = TOK_ELSE;
+    keyword["for"] = TOK_FOR;
+    keyword["in"] = TOK_IN;
 
     BinOpPrecedence['<'] = 10;
     BinOpPrecedence['+'] = 20;
